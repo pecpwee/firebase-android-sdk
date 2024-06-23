@@ -79,7 +79,7 @@ public class InstrumentOkHttpEnqueueCallbackTest extends FirebasePerformanceTest
 
     InstrumentOkHttpEnqueueCallback enqueueCallback =
         new InstrumentOkHttpEnqueueCallback(
-            callback, transportManager, mockTimer(), startTimeMicros);
+            callback, transportManager, mockTimer(), startTimeMicros,true);
     enqueueCallback.onResponse(call, response);
 
     ArgumentCaptor<NetworkRequestMetric> argument =
@@ -114,7 +114,7 @@ public class InstrumentOkHttpEnqueueCallbackTest extends FirebasePerformanceTest
     long startTime = 1;
 
     InstrumentOkHttpEnqueueCallback enqueueCallback =
-        new InstrumentOkHttpEnqueueCallback(callback, transportManager, mockTimer(), startTime);
+        new InstrumentOkHttpEnqueueCallback(callback, transportManager, mockTimer(), startTime,true);
     enqueueCallback.onFailure(call, e);
 
     ArgumentCaptor<NetworkRequestMetric> argument =

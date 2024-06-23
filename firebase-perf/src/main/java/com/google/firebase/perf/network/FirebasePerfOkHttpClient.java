@@ -33,32 +33,43 @@ public class FirebasePerfOkHttpClient {
 
   private FirebasePerfOkHttpClient() {}
 
+  public static volatile boolean mIsFirebaseInited = false;
+
   @Keep
   public static Response execute(final Call call) throws IOException {
     final Response response;
-    NetworkRequestMetricBuilder builder =
-        NetworkRequestMetricBuilder.builder(TransportManager.getInstance());
+    boolean isFirebaseInited = mIsFirebaseInited;
+    NetworkRequestMetricBuilder builder = null;
+    if (isFirebaseInited) {
+        builder = NetworkRequestMetricBuilder.builder(TransportManager.getInstance());
+    }
     Timer timer = new Timer();
     long startTimeMicros = timer.getMicros();
     try {
       response = call.execute();
       long responseCompletedTimeMicros = timer.getDurationMicros();
-      sendNetworkMetric(response, builder, startTimeMicros, responseCompletedTimeMicros);
-    } catch (IOException e) {
-      Request request = call.request();
-      if (request != null) {
-        HttpUrl url = request.url();
-        if (url != null) {
-          builder.setUrl(url.url().toString());
-        }
-        String method = request.method();
-        if (method != null) {
-          builder.setHttpMethod(request.method());
-        }
+      if (isFirebaseInited) {
+
+          sendNetworkMetric(response, builder, startTimeMicros, responseCompletedTimeMicros);
       }
-      builder.setRequestStartTimeMicros(startTimeMicros);
-      builder.setTimeToResponseCompletedMicros(timer.getDurationMicros());
-      NetworkRequestMetricBuilderUtil.logError(builder);
+    } catch (IOException e) {
+        if (isFirebaseInited) {
+
+            Request request = call.request();
+            if (request != null) {
+                HttpUrl url = request.url();
+                if (url != null) {
+                    builder.setUrl(url.url().toString());
+                }
+                String method = request.method();
+                if (method != null) {
+                    builder.setHttpMethod(request.method());
+                }
+            }
+            builder.setRequestStartTimeMicros(startTimeMicros);
+            builder.setTimeToResponseCompletedMicros(timer.getDurationMicros());
+            NetworkRequestMetricBuilderUtil.logError(builder);
+        }
       throw e;
     }
     return response;
@@ -70,7 +81,7 @@ public class FirebasePerfOkHttpClient {
     long startTime = timer.getMicros();
     call.enqueue(
         new InstrumentOkHttpEnqueueCallback(
-            callback, TransportManager.getInstance(), timer, startTime));
+            callback, TransportManager.getInstance(), timer, startTime, mIsFirebaseInited));
   }
 
   static void sendNetworkMetric(

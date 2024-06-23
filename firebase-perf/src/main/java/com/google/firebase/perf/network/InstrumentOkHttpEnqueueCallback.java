@@ -28,46 +28,58 @@ import okhttp3.Response;
 public class InstrumentOkHttpEnqueueCallback implements Callback {
 
   private final Callback callback;
-  private final NetworkRequestMetricBuilder networkMetricBuilder;
+  private NetworkRequestMetricBuilder networkMetricBuilder;
   private final Timer timer;
 
   private final long startTimeMicros;
+  private boolean isFirebaseInited = false;
 
   public InstrumentOkHttpEnqueueCallback(
       final Callback callback,
       final TransportManager transportManager,
       Timer timer,
-      long startTime) {
+      long startTime,
+      boolean isFirebaseInited
+
+      ) {
+    this.isFirebaseInited = isFirebaseInited;
     this.callback = callback;
-    networkMetricBuilder = NetworkRequestMetricBuilder.builder(transportManager);
+    if (isFirebaseInited){
+      networkMetricBuilder = NetworkRequestMetricBuilder.builder(transportManager);
+    }
     startTimeMicros = startTime;
     this.timer = timer;
   }
 
   @Override
   public void onFailure(Call call, IOException e) {
-    Request request = call.request();
-    if (request != null) {
-      HttpUrl url = request.url();
-      if (url != null) {
-        networkMetricBuilder.setUrl(url.url().toString());
+    if (isFirebaseInited){
+      Request request = call.request();
+      if (request != null) {
+        HttpUrl url = request.url();
+        if (url != null) {
+          networkMetricBuilder.setUrl(url.url().toString());
+        }
+        String method = request.method();
+        if (method != null) {
+          networkMetricBuilder.setHttpMethod(request.method());
+        }
       }
-      String method = request.method();
-      if (method != null) {
-        networkMetricBuilder.setHttpMethod(request.method());
-      }
+      networkMetricBuilder.setRequestStartTimeMicros(startTimeMicros);
+      networkMetricBuilder.setTimeToResponseCompletedMicros(timer.getDurationMicros());
+      NetworkRequestMetricBuilderUtil.logError(networkMetricBuilder);
+
     }
-    networkMetricBuilder.setRequestStartTimeMicros(startTimeMicros);
-    networkMetricBuilder.setTimeToResponseCompletedMicros(timer.getDurationMicros());
-    NetworkRequestMetricBuilderUtil.logError(networkMetricBuilder);
     callback.onFailure(call, e);
   }
 
   @Override
   public void onResponse(Call call, Response response) throws IOException {
-    long responseCompletedTimeMicros = timer.getDurationMicros();
-    FirebasePerfOkHttpClient.sendNetworkMetric(
-        response, networkMetricBuilder, startTimeMicros, responseCompletedTimeMicros);
+    if (isFirebaseInited){
+      long responseCompletedTimeMicros = timer.getDurationMicros();
+      FirebasePerfOkHttpClient.sendNetworkMetric(
+              response, networkMetricBuilder, startTimeMicros, responseCompletedTimeMicros);
+    }
     callback.onResponse(call, response);
   }
 }
